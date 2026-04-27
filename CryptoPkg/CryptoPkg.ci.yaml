@@ -39,7 +39,7 @@
     },
     ## options defined .pytool/Plugin/HostUnitTestCompilerPlugin
     "HostUnitTestCompilerPlugin": {
-        #"DscPath": "Test/CryptoPkgHostUnitTest.dsc"  # MU_CHANGE - Disable temporarily while transitioning crypto
+        "DscPath": "Test/CryptoPkgHostUnitTest.dsc"
     },
     "CharEncodingCheck": {
         "IgnoreFiles": []

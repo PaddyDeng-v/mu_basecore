@@ -34,15 +34,16 @@
   #
   # Build HOST_APPLICATION that tests the SampleUnitTest
   #
-  CryptoPkg/Test/UnitTest/Library/BaseCryptLib/TestBaseCryptLibHost.inf
+  # CryptoPkg/Test/UnitTest/Library/BaseCryptLib/TestBaseCryptLibHost.inf
+  CryptoPkg/Test/Mock/Library/GoogleTest/MockBaseCryptLib/MockBaseCryptLib.inf
 [Components.IA32, Components.X64]
   #
   # Build HOST_APPLICATION that tests the SampleUnitTest
   #
-  CryptoPkg/Test/UnitTest/Library/BaseCryptLib/TestBaseCryptLibHost.inf {
-    <Defines>
-      FILE_GUID = 3604CCB8-138C-488F-8045-18704F73E734
-  }
+  # CryptoPkg/Test/UnitTest/Library/BaseCryptLib/TestBaseCryptLibHost.inf {
+  #   <Defines>
+  #     FILE_GUID = 3604CCB8-138C-488F-8045-18704F73E734
+  # }
 
 [BuildOptions]
   *_*_*_CC_FLAGS = -D DISABLE_NEW_DEPRECATED_INTERFACES
