@@ -20,9 +20,6 @@
 
 #include "ManageabilityTransportKcs.h"
 
-extern MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO  mKcsHardwareInfo;
-extern MANAGEABILITY_TRANSPORT_KCS                *mSingleSessionToken;
-
 /**
   This function waits for parameter Flag to set.
   Checks status flag in every 1ms internal till 5 seconds elapses.
@@ -33,13 +30,14 @@ extern MANAGEABILITY_TRANSPORT_KCS                *mSingleSessionToken;
 **/
 EFI_STATUS
 WaitStatusSet (
-  IN  UINT8  Flag
+  IN  UINT8                                      Flag,
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO  *HardwareInfo
   )
 {
   UINT64  Timeout;
 
   Timeout = 0;
-  while ((KcsRegisterRead8 (KCS_REG_STATUS) & Flag) != TRUE) {
+  while ((KcsRegisterRead8 (HardwareInfo->IoStatusAddress, HardwareInfo->MemoryMap) & Flag) != TRUE) {
     MicroSecondDelay (IPMI_KCS_TIMEOUT_1MS);
     Timeout = Timeout + IPMI_KCS_TIMEOUT_1MS;
     if (Timeout >= PcdGet64 (PcdKcsStatusCheckTimeout)) {
@@ -62,13 +60,14 @@ WaitStatusSet (
 **/
 EFI_STATUS
 WaitStatusClear (
-  IN  UINT8  Flag
+  IN  UINT8                                      Flag,
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO  *HardwareInfo
   )
 {
   UINT64  Timeout;
 
   Timeout = 0;
-  while (KcsRegisterRead8 (KCS_REG_STATUS) & Flag) {
+  while (KcsRegisterRead8 (HardwareInfo->IoStatusAddress, HardwareInfo->MemoryMap) & Flag) {
     MicroSecondDelay (IPMI_KCS_TIMEOUT_1MS);
     Timeout = Timeout + IPMI_KCS_TIMEOUT_1MS;
     if (Timeout >= PcdGet64 (PcdKcsStatusCheckTimeout)) {
@@ -89,12 +88,12 @@ WaitStatusClear (
 **/
 EFI_STATUS
 ClearOBF (
-  VOID
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO  *HardwareInfo
   )
 {
-  if (KcsRegisterRead8 (KCS_REG_STATUS) & IPMI_KCS_OBF) {
-    KcsRegisterRead8 (KCS_REG_DATA_IN); // read the data to clear the OBF
-    if (KcsRegisterRead8 (KCS_REG_STATUS) & IPMI_KCS_OBF) {
+  if (KcsRegisterRead8 (HardwareInfo->IoStatusAddress, HardwareInfo->MemoryMap) & IPMI_KCS_OBF) {
+    KcsRegisterRead8 (HardwareInfo->IoDataInAddress, HardwareInfo->MemoryMap); // read the data to clear the OBF
+    if (KcsRegisterRead8 (HardwareInfo->IoStatusAddress, HardwareInfo->MemoryMap) & IPMI_KCS_OBF) {
       return EFI_NOT_READY;
     }
   }
@@ -133,12 +132,13 @@ ClearOBF (
 **/
 EFI_STATUS
 KcsTransportWrite (
-  IN  MANAGEABILITY_TRANSPORT_HEADER   TransmitHeader,
-  IN  UINT16                           TransmitHeaderSize,
-  IN  MANAGEABILITY_TRANSPORT_TRAILER  TransmitTrailer OPTIONAL,
-  IN  UINT16                           TransmitTrailerSize,
-  IN  UINT8                            *RequestData OPTIONAL,
-  IN  UINT32                           RequestDataSize
+  IN  MANAGEABILITY_TRANSPORT_HEADER             TransmitHeader,
+  IN  UINT16                                     TransmitHeaderSize,
+  IN  MANAGEABILITY_TRANSPORT_TRAILER            TransmitTrailer OPTIONAL,
+  IN  UINT16                                     TransmitTrailerSize,
+  IN  UINT8                                      *RequestData OPTIONAL,
+  IN  UINT32                                     RequestDataSize,
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO  *HardwareInfo
   )
 {
   EFI_STATUS  Status;
@@ -207,61 +207,61 @@ KcsTransportWrite (
   BufferPtr = Buffer;
 
   // Step 1. wait for IBF to get clear
-  Status = WaitStatusClear (IPMI_KCS_IBF);
+  Status = WaitStatusClear (IPMI_KCS_IBF, HardwareInfo);
   if (EFI_ERROR (Status)) {
     FreePool (Buffer);
     return Status;
   }
 
   // Step 2. clear OBF
-  if (EFI_ERROR (ClearOBF ())) {
+  if (EFI_ERROR (ClearOBF (HardwareInfo))) {
     FreePool (Buffer);
     return EFI_NOT_READY;
   }
 
   // Step 3. WR_START to CMD, phase=wr_start
-  KcsRegisterWrite8 (KCS_REG_COMMAND, IPMI_KCS_CONTROL_CODE_WRITE_START);
+  KcsRegisterWrite8 (HardwareInfo->IoCommandAddress, IPMI_KCS_CONTROL_CODE_WRITE_START, HardwareInfo->MemoryMap);
 
   // Step 4. wait for IBF to get clear
-  Status = WaitStatusClear (IPMI_KCS_IBF);
+  Status = WaitStatusClear (IPMI_KCS_IBF, HardwareInfo);
   if (EFI_ERROR (Status)) {
     FreePool (Buffer);
     return Status;
   }
 
   // Step 5. check state it should be WRITE_STATE, else exit with error
-  if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (KCS_REG_STATUS)) != IpmiKcsWriteState) {
+  if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (HardwareInfo->IoStatusAddress, HardwareInfo->MemoryMap)) != IpmiKcsWriteState) {
     FreePool (Buffer);
     return EFI_NOT_READY;
   }
 
   // Step 6, Clear OBF
-  if (EFI_ERROR (ClearOBF ())) {
+  if (EFI_ERROR (ClearOBF (HardwareInfo))) {
     FreePool (Buffer);
     return EFI_NOT_READY;
   }
 
   while (Length > 1) {
     // Step 7, phase wr_data, write one byte of Data
-    KcsRegisterWrite8 (KCS_REG_DATA_OUT, *BufferPtr);
+    KcsRegisterWrite8 (HardwareInfo->IoDataOutAddress, *BufferPtr, HardwareInfo->MemoryMap);
     Length--;
     BufferPtr++;
 
     // Step 8. wait for IBF clear
-    Status = WaitStatusClear (IPMI_KCS_IBF);
+    Status = WaitStatusClear (IPMI_KCS_IBF, HardwareInfo);
     if (EFI_ERROR (Status)) {
       FreePool (Buffer);
       return Status;
     }
 
     // Step 9. check state it should be WRITE_STATE, else exit with error
-    if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (KCS_REG_STATUS)) != IpmiKcsWriteState) {
+    if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (HardwareInfo->IoStatusAddress, HardwareInfo->MemoryMap)) != IpmiKcsWriteState) {
       FreePool (Buffer);
       return EFI_NOT_READY;
     }
 
     // Step 10
-    if (EFI_ERROR (ClearOBF ())) {
+    if (EFI_ERROR (ClearOBF (HardwareInfo))) {
       FreePool (Buffer);
       return EFI_NOT_READY;
     }
@@ -273,29 +273,29 @@ KcsTransportWrite (
   }
 
   // Step 12, WR_END  to CMD
-  KcsRegisterWrite8 (KCS_REG_COMMAND, IPMI_KCS_CONTROL_CODE_WRITE_END);
+  KcsRegisterWrite8 (HardwareInfo->IoCommandAddress, IPMI_KCS_CONTROL_CODE_WRITE_END, HardwareInfo->MemoryMap);
 
   // Step 13. wait for IBF to get clear
-  Status = WaitStatusClear (IPMI_KCS_IBF);
+  Status = WaitStatusClear (IPMI_KCS_IBF, HardwareInfo);
   if (EFI_ERROR (Status)) {
     FreePool (Buffer);
     return Status;
   }
 
   // Step 14. check state it should be WRITE_STATE, else exit with error
-  if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (KCS_REG_STATUS)) != IpmiKcsWriteState) {
+  if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (HardwareInfo->IoStatusAddress, HardwareInfo->MemoryMap)) != IpmiKcsWriteState) {
     FreePool (Buffer);
     return EFI_NOT_READY;
   }
 
   // Step 15
-  if (EFI_ERROR (ClearOBF ())) {
+  if (EFI_ERROR (ClearOBF (HardwareInfo))) {
     FreePool (Buffer);
     return EFI_NOT_READY;
   }
 
   // Step 16, write the last byte
-  KcsRegisterWrite8 (KCS_REG_DATA_OUT, *BufferPtr);
+  KcsRegisterWrite8 (HardwareInfo->IoDataOutAddress, *BufferPtr, HardwareInfo->MemoryMap);
   FreePool (Buffer);
   return EFI_SUCCESS;
 }
@@ -306,7 +306,8 @@ KcsTransportWrite (
   Figure 9-7, KCS Interface BMC to SMS Read Transfer Flow Chart
 
   @param [out]      DataBytes             Buffer to hold the read Data.
-  @param [in, out]  Length                Number of Bytes read from KCS port.
+  @param [in, out]  Length                Buffer capacity on input, bytes read on output.
+  @param [in]      HardwareInfo          KCS register configuration.
   @retval           EFI_SUCCESS           The command byte stream was
                                           successfully submit to the device and
                                           a response was successfully received.
@@ -325,8 +326,9 @@ KcsTransportWrite (
 **/
 EFI_STATUS
 KcsTransportRead (
-  OUT    UINT8   *DataByte,
-  IN OUT UINT32  *Length
+  OUT    UINT8                                   *DataByte,
+  IN OUT UINT32                                  *Length,
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO  *HardwareInfo
   )
 {
   EFI_STATUS  Status;
@@ -340,41 +342,41 @@ KcsTransportRead (
   ReadLength = 0;
   while (ReadLength < *Length) {
     // Step 1. wait for IBF to get clear
-    Status = WaitStatusClear (IPMI_KCS_IBF);
+    Status = WaitStatusClear (IPMI_KCS_IBF, HardwareInfo);
     if (EFI_ERROR (Status)) {
       *Length = ReadLength;
       return Status;
     }
 
     // Step 2. check state it should be READ_STATE, else exit with error
-    if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (KCS_REG_STATUS)) == IpmiKcsReadState) {
+    if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (HardwareInfo->IoStatusAddress, HardwareInfo->MemoryMap)) == IpmiKcsReadState) {
       // Step 2.1.1 check of OBF to get clear
-      Status = WaitStatusSet (IPMI_KCS_OBF);
+      Status = WaitStatusSet (IPMI_KCS_OBF, HardwareInfo);
       if (EFI_ERROR (Status)) {
         *Length = ReadLength;
         return Status;
       }
 
       // Step 2.1.2 read data from data out
-      DataByte[ReadLength++] = KcsRegisterRead8 (KCS_REG_DATA_IN);
-      Status                 = WaitStatusClear (IPMI_KCS_IBF);
+      DataByte[ReadLength++] = KcsRegisterRead8 (HardwareInfo->IoDataInAddress, HardwareInfo->MemoryMap);
+      Status                 = WaitStatusClear (IPMI_KCS_IBF, HardwareInfo);
       if (EFI_ERROR (Status)) {
         *Length = ReadLength;
         return Status;
       }
 
       // Step 2.1.3 Write READ byte to data in register.
-      KcsRegisterWrite8 (KCS_REG_DATA_OUT, IPMI_KCS_CONTROL_CODE_READ);
-    } else if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (KCS_REG_STATUS)) == IpmiKcsIdleState) {
+      KcsRegisterWrite8 (HardwareInfo->IoDataOutAddress, IPMI_KCS_CONTROL_CODE_READ, HardwareInfo->MemoryMap);
+    } else if (IPMI_KCS_GET_STATE (KcsRegisterRead8 (HardwareInfo->IoStatusAddress, HardwareInfo->MemoryMap)) == IpmiKcsIdleState) {
       // Step 2.2.1
-      Status = WaitStatusSet (IPMI_KCS_OBF);
+      Status = WaitStatusSet (IPMI_KCS_OBF, HardwareInfo);
       if (EFI_ERROR (Status)) {
         *Length = ReadLength;
         return Status;
       }
 
       // Step 2.2.2 read dummy data
-      KcsRegisterRead8 (KCS_REG_DATA_IN); // Dummy read as per IPMI spec
+      KcsRegisterRead8 (HardwareInfo->IoDataInAddress, HardwareInfo->MemoryMap); // Dummy read as per IPMI spec
       *Length = ReadLength;
       return EFI_SUCCESS;
     } else {
@@ -402,6 +404,8 @@ EFI_STATUS
 KcsCheckResponseData (
   IN UINT8                                       *ResponseData,
   IN UINT32                                      ResponseDataSize,
+  IN MANAGEABILITY_TRANSPORT_KCS                 *SessionToken,
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO  *HardwareInfo,
   OUT MANAGEABILITY_TRANSPORT_ADDITIONAL_STATUS  *AdditionalStatus
   )
 {
@@ -413,12 +417,12 @@ KcsCheckResponseData (
 
   Status            = EFI_SUCCESS;
   *AdditionalStatus = MANAGEABILITY_TRANSPORT_ADDITIONAL_STATUS_NO_ERRORS;
-  if (CompareGuid (&gManageabilityProtocolMctpGuid, mSingleSessionToken->Token.ManageabilityProtocolSpecification)) {
+  if (CompareGuid (&gManageabilityProtocolMctpGuid, SessionToken->Token.ManageabilityProtocolSpecification)) {
     //
     // For MCTP over KCS, check PEC
     //
     PecSize = sizeof (MANAGEABILITY_MCTP_KCS_TRAILER) + 1;  // +1 to read last dummy byte that finishes KCS transfer
-    Status  = KcsTransportRead (&MctpKcsPec.Pec, &PecSize);
+    Status  = KcsTransportRead (&MctpKcsPec.Pec, &PecSize, HardwareInfo);
     if (EFI_ERROR (Status)) {
       DEBUG ((
         DEBUG_ERROR,
@@ -454,7 +458,7 @@ KcsCheckResponseData (
         ));
       Status = EFI_DEVICE_ERROR;
     }
-  } else if (CompareGuid (&gManageabilityProtocolIpmiGuid, mSingleSessionToken->Token.ManageabilityProtocolSpecification)) {
+  } else if (CompareGuid (&gManageabilityProtocolIpmiGuid, SessionToken->Token.ManageabilityProtocolSpecification)) {
     //
     // For IPMI over KCS
     // Check and print Completion Code
@@ -487,6 +491,8 @@ KcsCheckResponseData (
 EFI_STATUS
 KcsReadResponseHeader (
   IN   UINT8                                      **ResponseHeader,
+  IN   MANAGEABILITY_TRANSPORT_KCS                *SessionToken,
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO   *HardwareInfo,
   OUT  MANAGEABILITY_TRANSPORT_ADDITIONAL_STATUS  *AdditionalStatus
   )
 {
@@ -500,7 +506,7 @@ KcsReadResponseHeader (
   }
 
   *ResponseHeader = NULL;
-  if (CompareGuid (&gManageabilityProtocolMctpGuid, mSingleSessionToken->Token.ManageabilityProtocolSpecification)) {
+  if (CompareGuid (&gManageabilityProtocolMctpGuid, SessionToken->Token.ManageabilityProtocolSpecification)) {
     // For MCTP over KCS
     ExpectedHeaderSize = sizeof (MANAGEABILITY_MCTP_KCS_HEADER);
     DEBUG ((
@@ -508,7 +514,7 @@ KcsReadResponseHeader (
       "%a: Reading MCTP over KCS response header.\n",
       __func__
       ));
-  } else if (CompareGuid (&gManageabilityProtocolIpmiGuid, mSingleSessionToken->Token.ManageabilityProtocolSpecification)) {
+  } else if (CompareGuid (&gManageabilityProtocolIpmiGuid, SessionToken->Token.ManageabilityProtocolSpecification)) {
     // For IPMI over KCS
 
     ExpectedHeaderSize = sizeof (IPMI_KCS_RESPONSE_HEADER);
@@ -522,7 +528,7 @@ KcsReadResponseHeader (
       DEBUG_ERROR,
       "%a: Error! Unsupported manageability protocol over KCS: %g.\n",
       __func__,
-      mSingleSessionToken->Token.ManageabilityProtocolSpecification
+      SessionToken->Token.ManageabilityProtocolSpecification
       ));
     return EFI_INVALID_PARAMETER;
   }
@@ -534,7 +540,7 @@ KcsReadResponseHeader (
   }
 
   RspHeaderSize = ExpectedHeaderSize;
-  Status        = KcsTransportRead (RspHeader, &RspHeaderSize);
+  Status        = KcsTransportRead (RspHeader, &RspHeaderSize, HardwareInfo);
   if (EFI_ERROR (Status)) {
     DEBUG ((
       DEBUG_ERROR,
@@ -562,7 +568,7 @@ KcsReadResponseHeader (
     return EFI_DEVICE_ERROR;
   }
 
-  if (CompareGuid (&gManageabilityProtocolMctpGuid, mSingleSessionToken->Token.ManageabilityProtocolSpecification)) {
+  if (CompareGuid (&gManageabilityProtocolMctpGuid, SessionToken->Token.ManageabilityProtocolSpecification)) {
     //
     // MCTP over KCS
     //
@@ -637,6 +643,8 @@ KcsTransportSendCommand (
   IN  UINT16                                      TransmitTrailerSize,
   IN  UINT8                                       *RequestData OPTIONAL,
   IN  UINT32                                      RequestDataSize,
+  IN  MANAGEABILITY_TRANSPORT_KCS                 *SessionToken,
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO   *HardwareInfo,
   OUT UINT8                                       *ResponseData OPTIONAL,
   IN  OUT UINT32                                  *ResponseDataSize OPTIONAL,
   OUT  MANAGEABILITY_TRANSPORT_ADDITIONAL_STATUS  *AdditionalStatus
@@ -661,6 +669,15 @@ KcsTransportSendCommand (
     return EFI_INVALID_PARAMETER;
   }
 
+  if (SessionToken == NULL) {
+    DEBUG ((DEBUG_ERROR, "%a: SessionToken is NULL.\n", __func__));
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (HardwareInfo == NULL) {
+    DEBUG ((DEBUG_ERROR, "%a: HardwareInfo is NULL.\n", __func__));
+    return EFI_INVALID_PARAMETER;
+  }
   // Print out the request payloads.
   if ((TransmitHeader != NULL) && (TransmitHeaderSize != 0)) {
     HelperManageabilityDebugPrint ((VOID *)TransmitHeader, (UINT32)TransmitHeaderSize, "KCS Transmit Header:\n");
@@ -681,7 +698,8 @@ KcsTransportSendCommand (
                TransmitTrailer,
                TransmitTrailerSize,
                RequestData,
-               RequestDataSize
+               RequestDataSize,
+               HardwareInfo
                );
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "KCS Write Failed with Status(%r)\n", Status));
@@ -693,7 +711,7 @@ KcsTransportSendCommand (
     //
     // Read the response header
     //
-    Status = KcsReadResponseHeader (&RspHeader, AdditionalStatus);
+    Status = KcsReadResponseHeader (&RspHeader, SessionToken, HardwareInfo, AdditionalStatus);
     if (EFI_ERROR (Status)) {
       return (Status);
     }
@@ -701,7 +719,7 @@ KcsTransportSendCommand (
     //
     // Override ResposeDataSize if the manageability protocol is MCTP.
     //
-    if (CompareGuid (&gManageabilityProtocolMctpGuid, mSingleSessionToken->Token.ManageabilityProtocolSpecification)) {
+    if (CompareGuid (&gManageabilityProtocolMctpGuid, SessionToken->Token.ManageabilityProtocolSpecification)) {
       if (*ResponseDataSize < ((MANAGEABILITY_MCTP_KCS_HEADER *)RspHeader)->ByteCount) {
         DEBUG ((
           DEBUG_ERROR,
@@ -719,7 +737,7 @@ KcsTransportSendCommand (
     FreePool (RspHeader);
 
     ExpectedResponseDataSize = *ResponseDataSize;
-    Status                   = KcsTransportRead (ResponseData, ResponseDataSize);
+    Status                   = KcsTransportRead (ResponseData, ResponseDataSize, HardwareInfo);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "KCS response read Failed with Status(%r)\n", Status));
     }
@@ -737,7 +755,7 @@ KcsTransportSendCommand (
       }
 
       HelperManageabilityDebugPrint ((VOID *)ResponseData, (UINT32)*ResponseDataSize, "KCS Response Data:\n");
-      Status = KcsCheckResponseData (ResponseData, *ResponseDataSize, AdditionalStatus);
+      Status = KcsCheckResponseData (ResponseData, *ResponseDataSize, SessionToken, HardwareInfo, AdditionalStatus);
     } else {
       DEBUG ((DEBUG_ERROR, "No response, can't determine Completion Code.\n"));
     }
@@ -758,12 +776,13 @@ KcsTransportSendCommand (
 **/
 UINT8
 KcsRegisterRead8 (
-  MANAGEABILITY_TRANSPORT_HARDWARE_IO  Address
+  MANAGEABILITY_TRANSPORT_HARDWARE_IO  Address,
+  BOOLEAN                              IsMmio
   )
 {
   UINT8  Value;
 
-  if (mKcsHardwareInfo.MemoryMap == MANAGEABILITY_TRANSPORT_KCS_MEMORY_MAP_IO) {
+  if (IsMmio == MANAGEABILITY_TRANSPORT_KCS_MEMORY_MAP_IO) {
     // Read 8-bit value from 32-bit Memory mapped address.
     Value = MmioRead8 ((UINTN)Address.IoAddress32);
   } else {
@@ -785,10 +804,11 @@ KcsRegisterRead8 (
 VOID
 KcsRegisterWrite8 (
   MANAGEABILITY_TRANSPORT_HARDWARE_IO  Address,
-  UINT8                                Value
+  UINT8                                Value,
+  BOOLEAN                              IsMmio
   )
 {
-  if (mKcsHardwareInfo.MemoryMap == MANAGEABILITY_TRANSPORT_KCS_MEMORY_MAP_IO) {
+  if (IsMmio == MANAGEABILITY_TRANSPORT_KCS_MEMORY_MAP_IO) {
     // Write 8-bit value to 32-bit Memory mapped address.
     MmioWrite8 ((UINTN)Address.IoAddress32, Value);
   } else {

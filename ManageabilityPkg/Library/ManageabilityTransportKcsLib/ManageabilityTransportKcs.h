@@ -75,6 +75,8 @@ KcsTransportSendCommand (
   IN  UINT16                                      TransmitTrailerSize,
   IN  UINT8                                       *RequestData OPTIONAL,
   IN  UINT32                                      RequestDataSize,
+  IN MANAGEABILITY_TRANSPORT_KCS                 *SessionToken,
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO   *HardwareInfo,
   OUT UINT8                                       *ResponseData OPTIONAL,
   IN  OUT UINT32                                  *ResponseDataSize OPTIONAL,
   OUT  MANAGEABILITY_TRANSPORT_ADDITIONAL_STATUS  *AdditionalStatus
@@ -90,7 +92,8 @@ KcsTransportSendCommand (
 **/
 UINT8
 KcsRegisterRead8 (
-  MANAGEABILITY_TRANSPORT_HARDWARE_IO  Address
+  MANAGEABILITY_TRANSPORT_HARDWARE_IO  Address,
+  BOOLEAN                              IsMmio
   );
 
 /**
@@ -104,5 +107,17 @@ KcsRegisterRead8 (
 VOID
 KcsRegisterWrite8 (
   MANAGEABILITY_TRANSPORT_HARDWARE_IO  Address,
-  UINT8                                Value
+  UINT8                                Value,
+  BOOLEAN                              IsMmio
   );
+
+MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO*
+KcsGetHardwareInfo(VOID);
+
+MANAGEABILITY_TRANSPORT_KCS*
+KcsGetSessionToken(VOID);
+
+EFI_STATUS
+KcsSetSessionToken(
+    MANAGEABILITY_TRANSPORT_KCS* SessionToken
+    );
