@@ -8,6 +8,7 @@
 
 #include <PiPei.h>
 #include <Library/DebugLib.h>
+#include <Library/IpmiPlatformInitLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/ManageabilityTransportLib.h>
@@ -308,6 +309,11 @@ PeiIpmiEntry (
   EFI_STATUS             CleanupStatus;
   PEI_IPMI_PPI_INTERNAL  *PeiIpmiPpiinternal;
 
+  Status = IpmiPlatformInitialize ();
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "%a: IPMI platform initialization failed - %r\n", __func__, Status));
+    return Status;
+  }
 
   //
   // Allocate PEI_IPMI_PPI_INTERNAL memory for the dynamic variables,
