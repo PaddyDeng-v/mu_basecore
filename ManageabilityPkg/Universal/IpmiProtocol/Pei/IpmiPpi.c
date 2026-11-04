@@ -195,42 +195,6 @@ PeiIpmiEnsureTransportReady (
 }
 
 /**
-  Reconstruct the IPMI transport after temporary-memory evacuation.
-
-  @param[in] PeiServices       PEI services table.
-  @param[in] NotifyDescriptor  Embedded descriptor rebased by PEI Core.
-  @param[in] Ppi               Unused signal PPI interface (may be NULL).
-
-  @retval EFI_SUCCESS  Transport ready, or the descriptor is intentionally inert.
-  @retval Other        Recovery failed; the next submit can retry.
-**/
-EFI_STATUS
-EFIAPI
-PeiIpmiMemoryDiscovered (
-  IN EFI_PEI_SERVICES           **PeiServices,
-  IN EFI_PEI_NOTIFY_DESCRIPTOR  *NotifyDescriptor,
-  IN VOID                       *Ppi
-  )
-{
-  EFI_STATUS             Status;
-  PEI_IPMI_PPI_INTERNAL  *Private;
-
-  Private = MANAGEABILITY_IPMI_PPI_INTERNAL_FROM_NOTIFY (NotifyDescriptor);
-  if (!Private->Enabled) {
-    // Registration can call us immediately. Failed publication also leaves
-    // this registered descriptor alive but inert: PEI has no unregister service.
-    return EFI_SUCCESS;
-  }
-
-  Status = PeiIpmiEnsureTransportReady (Private);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "%a: IPMI memory recovery failed - %r\n", __func__, Status));
-  }
-
-  return Status;
-}
-
-/**
   This service enables submitting commands via Ipmi.
 
   @param[in]         This              This point for PEI_IPMI_PPI structure.
@@ -286,6 +250,45 @@ PeiIpmiSubmitCommand (
                                         ResponseDataSize
                                         );
   PeiIpmiPpiinternal->TransportBusy = FALSE;
+  return Status;
+}
+
+/**
+  Rebind the IPMI command callback and reconstruct the transport after migration.
+
+  @param[in] PeiServices       PEI services table.
+  @param[in] NotifyDescriptor  Embedded descriptor rebased by PEI Core.
+  @param[in] Ppi               Unused signal PPI interface (may be NULL).
+
+  @retval EFI_SUCCESS  Transport ready, or the descriptor is intentionally inert.
+  @retval Other        Recovery failed; the next submit can retry.
+**/
+EFI_STATUS
+EFIAPI
+PeiIpmiMemoryDiscovered (
+  IN EFI_PEI_SERVICES           **PeiServices,
+  IN EFI_PEI_NOTIFY_DESCRIPTOR  *NotifyDescriptor,
+  IN VOID                       *Ppi
+  )
+{
+  EFI_STATUS             Status;
+  PEI_IPMI_PPI_INTERNAL  *Private;
+
+  Private = MANAGEABILITY_IPMI_PPI_INTERNAL_FROM_NOTIFY (NotifyDescriptor);
+  if (!Private->Enabled) {
+    // Registration can call us immediately. Failed publication also leaves
+    // this registered descriptor alive but inert: PEI has no unregister service.
+    return EFI_SUCCESS;
+  }
+
+  // PEI Core rebases notification callbacks, not methods inside heap PPIs.
+  Private->PeiIpmiPpi.IpmiSubmitCommand = PeiIpmiSubmitCommand;
+
+  Status = PeiIpmiEnsureTransportReady (Private);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "%a: IPMI memory recovery failed - %r\n", __func__, Status));
+  }
+
   return Status;
 }
 
