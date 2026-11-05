@@ -20,6 +20,7 @@
   IpmiCommandLibNetFnChassis.c
   IpmiCommandLibNetFnStorage.c
   IpmiCommandLibNetFnTransport.c
+  IpmiCommandLibNetFnSensor.c
 
 [Packages]
   ManageabilityPkg/ManageabilityPkg.dec
