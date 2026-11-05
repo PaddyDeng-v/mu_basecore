@@ -15,6 +15,7 @@
 #include <Library/ManageabilityTransportIpmiLib.h>
 #include <Library/ManageabilityTransportHelperLib.h>
 #include <Library/PeiServicesLib.h>
+#include <IndustryStandard/IpmiNetFnApp.h>
 
 #include <Ppi/IpmiPpi.h>
 #include <Ppi/MemoryDiscovered.h>
@@ -292,6 +293,43 @@ PeiIpmiMemoryDiscovered (
   return Status;
 }
 
+EFI_STATUS
+PrintDeviceId (
+  MANAGEABILITY_TRANSPORT_TOKEN  *TransportToken
+  )
+{
+  EFI_STATUS                   Status;
+  IPMI_GET_DEVICE_ID_RESPONSE  DeviceIdResponse;
+  UINT32                       DataSize;
+
+  DataSize = sizeof (DeviceIdResponse);
+  Status   = CommonIpmiSubmitCommand (
+               TransportToken,
+               IPMI_NETFN_APP,
+               IPMI_APP_GET_DEVICE_ID,
+               NULL,
+               0,
+               (UINT8 *)&DeviceIdResponse,
+               &DataSize
+               );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "%a: IPMI Get Device ID failed - %r\n", __func__, Status));
+    return Status;
+  }
+
+  DEBUG ((
+    DEBUG_INFO,
+    "%a IPMI BMC Device ID: 0x%02X, firmware version: %d.%02X UpdateMode:%x\n",
+    __func__,
+    DeviceIdResponse.DeviceId,
+    DeviceIdResponse.FirmwareRev1.Bits.MajorFirmwareRev,
+    DeviceIdResponse.MinorFirmwareRev,
+    DeviceIdResponse.FirmwareRev1.Bits.UpdateMode
+    ));
+
+  return EFI_SUCCESS;
+}
+
 /**
   The entry point of the Ipmi PPI PEIM.
 
@@ -350,6 +388,11 @@ PeiIpmiEntry (
 
   PeiIpmiPpiinternal->Enabled = TRUE;
   Status                      = PeiIpmiEnsureTransportReady (PeiIpmiPpiinternal);
+  if (EFI_ERROR (Status)) {
+    goto Error;
+  }
+
+  Status = PrintDeviceId (PeiIpmiPpiinternal->TransportToken);
   if (EFI_ERROR (Status)) {
     goto Error;
   }
