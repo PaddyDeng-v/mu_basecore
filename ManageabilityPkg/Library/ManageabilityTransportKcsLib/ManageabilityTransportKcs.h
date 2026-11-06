@@ -44,6 +44,9 @@ typedef struct {
   @param[in]      TransmitTrailerSize   KCS packet trailer size in byte.
   @param[in]      RequestData           Command Request Data.
   @param[in]      RequestDataSize       Size of Command Request Data.
+  @param[in]      SessionToken          KCS session token, used to select the
+                                        manageability protocol.
+  @param[in]      HardwareInfo          KCS register configuration.
   @param[out]     ResponseData          Command Response Data. The completion
                                         code is the first byte of response
                                         data.
@@ -64,6 +67,9 @@ typedef struct {
                                         the device.
   @retval         EFI_OUT_OF_RESOURCES  The resource allocation is out of
                                         resource or data size error.
+  @retval         EFI_INVALID_PARAMETER  RequestData and RequestDataSize are
+                                        inconsistent, or SessionToken or
+                                        HardwareInfo is NULL.
 **/
 
 EFI_STATUS
@@ -75,6 +81,8 @@ KcsTransportSendCommand (
   IN  UINT16                                      TransmitTrailerSize,
   IN  UINT8                                       *RequestData OPTIONAL,
   IN  UINT32                                      RequestDataSize,
+  IN  MANAGEABILITY_TRANSPORT_KCS                 *SessionToken,
+  IN  MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO   *HardwareInfo,
   OUT UINT8                                       *ResponseData OPTIONAL,
   IN  OUT UINT32                                  *ResponseDataSize OPTIONAL,
   OUT  MANAGEABILITY_TRANSPORT_ADDITIONAL_STATUS  *AdditionalStatus
@@ -85,12 +93,15 @@ KcsTransportSendCommand (
 
   @param[in]      Address               This represents either 16-bit IO address
                                         or 32-bit memory mapped address.
+  @param[in]      IsMmio                TRUE if Address is a memory mapped
+                                        address, FALSE if it is an I/O address.
 
   @retval         UINT8                 8-bit value.
 **/
 UINT8
 KcsRegisterRead8 (
-  MANAGEABILITY_TRANSPORT_HARDWARE_IO  Address
+  MANAGEABILITY_TRANSPORT_HARDWARE_IO  Address,
+  BOOLEAN                              IsMmio
   );
 
 /**
@@ -99,10 +110,45 @@ KcsRegisterRead8 (
   @param[in]      Address               This represents either 16-bit IO address
                                         or 32-bit memory mapped address.
   @param[in]      Value                 8-bit value write to register address
+  @param[in]      IsMmio                TRUE if Address is a memory mapped
+                                        address, FALSE if it is an I/O address.
 
 **/
 VOID
 KcsRegisterWrite8 (
   MANAGEABILITY_TRANSPORT_HARDWARE_IO  Address,
-  UINT8                                Value
+  UINT8                                Value,
+  BOOLEAN                              IsMmio
+  );
+
+/**
+  Get the KCS hardware information of the current boot phase.
+
+  @return Pointer to the KCS hardware information.
+**/
+MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO *
+KcsGetHardwareInfo (
+  VOID
+  );
+
+/**
+  Get the KCS session token of the current boot phase.
+
+  @return Pointer to the session token, or NULL if no session is acquired.
+**/
+MANAGEABILITY_TRANSPORT_KCS *
+KcsGetSessionToken (
+  VOID
+  );
+
+/**
+  Record the KCS session token of the current boot phase.
+
+  @param[in]  SessionToken  Session token to record, or NULL to clear it.
+
+  @retval EFI_SUCCESS       The session token was recorded.
+**/
+EFI_STATUS
+KcsSetSessionToken (
+  IN  MANAGEABILITY_TRANSPORT_KCS  *SessionToken
   );
