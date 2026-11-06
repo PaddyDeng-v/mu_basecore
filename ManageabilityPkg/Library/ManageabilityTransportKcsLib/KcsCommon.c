@@ -761,14 +761,16 @@ KcsTransportSendCommand (
 
     // Print out the response payloads.
     if (*ResponseDataSize != 0) {
-      if (ExpectedResponseDataSize != *ResponseDataSize) {
-        DEBUG ((
-          DEBUG_ERROR,
-          "Expected KCS response size : %d is not matched to returned size : %d.\n",
-          ExpectedResponseDataSize,
-          *ResponseDataSize
-          ));
-        return EFI_DEVICE_ERROR;
+      if (CompareGuid (&gManageabilityProtocolMctpGuid, SessionToken->Token.ManageabilityProtocolSpecification)) {
+        if (ExpectedResponseDataSize != *ResponseDataSize) {
+          DEBUG ((
+            DEBUG_ERROR,
+            "Expected KCS response size : %d is not matched to returned size : %d.\n",
+            ExpectedResponseDataSize,
+            *ResponseDataSize
+            ));
+          return EFI_DEVICE_ERROR;
+        }
       }
 
       HelperManageabilityDebugPrint ((VOID *)ResponseData, (UINT32)*ResponseDataSize, "KCS Response Data:\n");
