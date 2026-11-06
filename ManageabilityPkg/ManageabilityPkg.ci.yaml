@@ -26,6 +26,9 @@
     "CompilerPlugin": {
         "DscPath": "ManageabilityPkg.dsc"
     },
+    "HostUnitTestCompilerPlugin": {
+        "DscPath": "Test/ManageabilityPkgHostTest.dsc"
+    },
     "CharEncodingCheck": {
         "IgnoreFiles": []
     },
@@ -38,7 +41,9 @@
             "MdeModulePkg/MdeModulePkg.dec"
         ],
         # For host based unit tests
-        "AcceptableDependencies-HOST_APPLICATION":[],
+        "AcceptableDependencies-HOST_APPLICATION":[
+            "UnitTestFrameworkPkg/UnitTestFrameworkPkg.dec"
+        ],
         # For UEFI shell based apps
         "AcceptableDependencies-UEFI_APPLICATION":[],
         "IgnoreInf": []

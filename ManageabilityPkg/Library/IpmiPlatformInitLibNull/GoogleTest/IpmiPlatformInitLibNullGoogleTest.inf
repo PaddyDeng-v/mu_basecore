@@ -1,0 +1,28 @@
+## @file
+# Production no-op initialization hook host test.
+#
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001d
+  BASE_NAME                      = IpmiPlatformInitLibNullGoogleTest
+  FILE_GUID                      = 7591AD16-F1E1-4015-A5F1-625D623EC534
+  VERSION_STRING                 = 1.0
+  MODULE_TYPE                    = HOST_APPLICATION
+
+[Sources]
+  IpmiPlatformInitLibNullGoogleTest.cpp
+  ../IpmiPlatformInitLibNull.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  ManageabilityPkg/ManageabilityPkg.dec
+  UnitTestFrameworkPkg/UnitTestFrameworkPkg.dec
+
+[LibraryClasses]
+  GoogleTestLib
+
+[BuildOptions]
+  MSFT:*_*_*_CC_FLAGS = /EHsc
