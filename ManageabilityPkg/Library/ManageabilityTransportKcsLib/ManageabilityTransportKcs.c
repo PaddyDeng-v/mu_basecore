@@ -78,6 +78,7 @@ KcsTransportInit (
   )
 {
   CHAR16                                     *ManageabilityProtocolName;
+  UINT16                                     KcsIoCmdAddress;
   MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO  *KcsHardwareInfo = KcsGetHardwareInfo ();
 
   if (!KcsIsCurrentTransportToken (TransportToken)) {
@@ -96,8 +97,14 @@ KcsTransportInit (
     KcsHardwareInfo->IoBaseAddress.IoAddress16    = PcdGet16 (PcdIpmiKcsIoBaseAddress);
     KcsHardwareInfo->IoDataInAddress.IoAddress16  = KcsHardwareInfo->IoBaseAddress.IoAddress16 + IPMI_KCS_DATA_IN_REGISTER_OFFSET;
     KcsHardwareInfo->IoDataOutAddress.IoAddress16 = KcsHardwareInfo->IoBaseAddress.IoAddress16 + IPMI_KCS_DATA_OUT_REGISTER_OFFSET;
-    KcsHardwareInfo->IoCommandAddress.IoAddress16 = KcsHardwareInfo->IoBaseAddress.IoAddress16 + IPMI_KCS_COMMAND_REGISTER_OFFSET;
-    KcsHardwareInfo->IoStatusAddress.IoAddress16  = KcsHardwareInfo->IoBaseAddress.IoAddress16 + IPMI_KCS_STATUS_REGISTER_OFFSET;
+
+    KcsIoCmdAddress = PcdGet16 (PcdIpmiKcsIoCmdAddress);
+    if (KcsIoCmdAddress == 0) {
+      KcsIoCmdAddress = KcsHardwareInfo->IoBaseAddress.IoAddress16 + IPMI_KCS_COMMAND_REGISTER_OFFSET;
+    }
+
+    KcsHardwareInfo->IoCommandAddress.IoAddress16 = KcsIoCmdAddress;
+    KcsHardwareInfo->IoStatusAddress.IoAddress16  = KcsIoCmdAddress;
   } else {
     KcsHardwareInfo->MemoryMap        = ((MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO *)HardwareInfo.Kcs)->MemoryMap;
     KcsHardwareInfo->IoBaseAddress    = ((MANAGEABILITY_TRANSPORT_KCS_HARDWARE_INFO *)HardwareInfo.Kcs)->IoBaseAddress;
