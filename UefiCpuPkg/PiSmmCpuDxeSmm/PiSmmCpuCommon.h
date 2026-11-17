@@ -1571,10 +1571,12 @@ SmmCpuRendezvous (
 /**
   Insure when this function returns, no AP will execute normal mode code before entering SMM, except SMI disabled APs.
 
+  @param[in] DeferPerformance  Save timestamps without allocating until AP initialization is complete.
+
 **/
 VOID
 SmmWaitForApArrival (
-  VOID
+  IN BOOLEAN  DeferPerformance
   );
 
 /**

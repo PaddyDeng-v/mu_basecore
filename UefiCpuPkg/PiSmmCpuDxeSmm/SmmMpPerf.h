@@ -17,6 +17,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
   _(SmmRendezvousEntry), \
   _(PlatformValidSmi), \
   _(SmmRendezvousExit), \
+  _(SmmWaitForApArrival), \
   _(SmmMpProcedureMax) // Add new entries above this line
 
 //

@@ -7,7 +7,15 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#include "PiSmmCpuCommon.h"
+#include <Uefi.h>
+#include <Library/BaseMemoryLib.h>
+#include <Library/DebugLib.h>
+#include <Library/MemoryAllocationLib.h>
+#include <Library/PcdLib.h>
+#include <Library/PerformanceLib.h>
+#include <Library/TimerLib.h>
+
+#include "SmmMpPerf.h"
 
 #define  SMM_MP_PERF_PROCEDURE_NAME(procedure)  # procedure
 GLOBAL_REMOVE_IF_UNREFERENCED
@@ -35,7 +43,7 @@ InitializeMpPerf (
 }
 
 /**
-  Migrate MP performance data to standardized performance database.
+  Migrate MP performance data to the standardized performance database after AP dispatch has ended.
 
   @param NumberofCpus    Number of processors in the platform.
   @param BspIndex        The index of the BSP.
@@ -59,8 +67,27 @@ MigrateMpPerf (
 
     for (MpProcecureId = 0; MpProcecureId < SMM_MP_PERF_PROCEDURE_ID (SmmMpProcedureMax); MpProcecureId++) {
       if (mSmmMpProcedurePerformance[CpuIndex].Begin[MpProcecureId] != 0) {
-        PERF_START (NULL, gSmmMpPerfProcedureName[MpProcecureId], NULL, mSmmMpProcedurePerformance[CpuIndex].Begin[MpProcecureId]);
-        PERF_END (NULL, gSmmMpPerfProcedureName[MpProcecureId], NULL, mSmmMpProcedurePerformance[CpuIndex].End[MpProcecureId]);
+        if (MpProcecureId == SMM_MP_PERF_PROCEDURE_ID (SmmWaitForApArrival)) {
+          if (LogPerformanceMeasurementEnabled (PERF_GENERAL_TYPE)) {
+            PERF_START_EX (
+              &gEfiCallerIdGuid,
+              gSmmMpPerfProcedureName[MpProcecureId],
+              NULL,
+              mSmmMpProcedurePerformance[CpuIndex].Begin[MpProcecureId],
+              PERF_FUNCTION_START_ID
+              );
+            PERF_END_EX (
+              &gEfiCallerIdGuid,
+              gSmmMpPerfProcedureName[MpProcecureId],
+              NULL,
+              mSmmMpProcedurePerformance[CpuIndex].End[MpProcecureId],
+              PERF_FUNCTION_END_ID
+              );
+          }
+        } else {
+          PERF_START (NULL, gSmmMpPerfProcedureName[MpProcecureId], NULL, mSmmMpProcedurePerformance[CpuIndex].Begin[MpProcecureId]);
+          PERF_END (NULL, gSmmMpPerfProcedureName[MpProcecureId], NULL, mSmmMpProcedurePerformance[CpuIndex].End[MpProcecureId]);
+        }
       }
     }
   }
